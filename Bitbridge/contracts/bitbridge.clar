@@ -201,3 +201,43 @@
   )
 )
 
+
+;; Helper function for batch status processing
+(define-private (process-product-status
+    (product-id uint)
+    (result {
+        statuses: (list 50 {
+            product-id: uint,
+            status: (optional (string-ascii 20)),
+            timestamp: (optional uint)
+        }),
+        count: uint
+    })
+)
+    (let (
+        (product-details (map-get? products { product-id: product-id }))
+    )
+        {
+            statuses: (unwrap-panic 
+                (as-max-len? 
+                    (concat 
+                        (get statuses result)
+                        (list {
+                            product-id: product-id,
+                            status: (match product-details
+                                details (some (get current-status details))
+                                none
+                            ),
+                            timestamp: (match product-details
+                                details (some (get creation-timestamp details))
+                                none
+                            )
+                        })
+                    )
+                    u50
+                )
+            ),
+            count: (+ (get count result) u1)
+        }
+    )
+)
