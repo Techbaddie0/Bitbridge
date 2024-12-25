@@ -13,6 +13,9 @@
 (define-constant ERR_UNAUTHORIZED_STATUS_UPDATE (err u201))
 (define-constant ERR_PRODUCT_NOT_FOUND (err u202))
 (define-constant ERR_IOT_VERIFICATION_FAILED (err u203))
+(define-constant ERR_INVALID_INPUT (err u204))
+(define-constant ERR_INVALID_HASH (err u205))
+(define-constant ERR_INVALID_IOT_DEVICE (err u206))
 
 ;; Product Tracking Structure
 (define-map products
@@ -57,6 +60,17 @@
   }
 )
 
+;; Validation Functions
+(define-private (validate-hash (hash (buff 32)))
+  (> (len hash) u0))
+
+(define-private (validate-iot-device-id (device-id (buff 32)))
+  (and 
+    (> (len device-id) u0)
+    (match (map-get? iot-devices { device-id: device-id })
+      device (get is-active device)
+      false)))
+
 ;; Initialize Status Transition Rules
 (define-public (initialize-status-transitions)
   (begin
@@ -76,6 +90,18 @@
   )
 )
 
+;; Helper function to validate status
+(define-private (validate-status (status (string-ascii 20)))
+  (or 
+    (is-eq status STATUS_CREATED)
+    (is-eq status STATUS_IN_TRANSIT)
+    (is-eq status STATUS_SHIPPED)
+    (is-eq status STATUS_DELIVERED)
+    (is-eq status STATUS_DAMAGED)
+    (is-eq status STATUS_LOST)
+  )
+)
+
 ;; Register a New Product with Authenticity Proof
 (define-public (register-product
   (product-id uint)
@@ -88,6 +114,21 @@
   (begin
     ;; Ensure product doesn't already exist
     (asserts! (is-none (map-get? products { product-id: product-id })) ERR_PRODUCT_NOT_FOUND)
+    ;; Validate initial status
+    (asserts! (validate-status initial-status) ERR_INVALID_INPUT)
+    ;; Validate input data
+    (asserts! (> product-id u0) ERR_INVALID_INPUT)
+    (asserts! (> creation-timestamp u0) ERR_INVALID_INPUT)
+    ;; Validate manufacturer
+    (asserts! (is-eq tx-sender manufacturer) ERR_UNAUTHORIZED_STATUS_UPDATE)
+    ;; Validate authentication hash
+    (asserts! (validate-hash authentication-hash) ERR_INVALID_HASH)
+    
+    ;; Validate optional IoT device if provided
+    (asserts! (match optional-iot-device-id
+                device-id (validate-iot-device-id device-id)
+                true) 
+              ERR_INVALID_IOT_DEVICE)
     
     ;; Register product with initial details
     (map-set products 
@@ -105,14 +146,16 @@
     ;; Optional IoT Device Registration
     (match optional-iot-device-id
       device-id 
-        (map-set iot-devices 
-          { device-id: device-id }
-          {
-            registered-by: tx-sender,
-            is-active: true,
-            product-id: (some product-id)
-          }
-        )
+        (begin
+          (asserts! (validate-iot-device-id device-id) ERR_INVALID_IOT_DEVICE)
+          (map-set iot-devices 
+            { device-id: device-id }
+            {
+              registered-by: tx-sender,
+              is-active: true,
+              product-id: (some product-id)
+            }
+          ))
       true
     )
     
@@ -120,13 +163,17 @@
   )
 )
 
-
 ;; Subscribe to Status Change Notifications
 (define-public (subscribe-to-status-events
   (product-id uint)
   (notify-statuses (list 10 (string-ascii 20)))
 )
   (begin
+    ;; Validate product-id
+    (asserts! (> product-id u0) ERR_INVALID_INPUT)
+    ;; Validate all statuses in the list
+    (asserts! (fold check-status notify-statuses true) ERR_INVALID_INPUT)
+    
     (map-set status-event-subscriptions 
       { 
         product-id: product-id, 
@@ -136,6 +183,11 @@
     )
     (ok true)
   )
+)
+
+;; Helper function to check status validity
+(define-private (check-status (status (string-ascii 20)) (valid bool))
+  (and valid (validate-status status))
 )
 
 ;; Internal Function to Notify Subscribers
@@ -168,27 +220,21 @@
   )
 )
 
-;; Verify Product Authenticity
-(define-read-only (verify-product-authenticity
-  (product-id uint)
-  (provided-hash (buff 32))
-)
-  (match (map-get? products { product-id: product-id })
-    product
-      (if (is-eq (get authentication-hash product) provided-hash)
-          (some true)
-          (some false)
-      )
-    none
-  )
-)
-
 ;; IoT Device Registration
 (define-public (register-iot-device
   (device-id (buff 32))
   (product-id (optional uint))
 )
   (begin
+    ;; Validate device-id
+    (asserts! (> (len device-id) u0) ERR_INVALID_IOT_DEVICE)
+    
+    ;; Validate product-id if provided
+    (asserts! (match product-id
+                id (> id u0)
+                true
+              ) ERR_INVALID_INPUT)
+    
     (map-set iot-devices 
       { device-id: device-id }
       {
@@ -200,7 +246,6 @@
     (ok true)
   )
 )
-
 
 ;; Helper function for batch status processing
 (define-private (process-product-status
