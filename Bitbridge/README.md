@@ -2,133 +2,200 @@
 
 ## Overview
 
-Bitbridges is a cutting-edge blockchain solution for supply chain management, leveraging Clarity smart contracts on the Stacks blockchain to provide transparent, secure, and verifiable product tracking.
+Bitbridges is a cutting-edge blockchain solution for supply chain management, leveraging Clarity smart contracts on the Stacks blockchain to provide transparent, secure, and verifiable product tracking with enhanced security features and IoT integration.
 
 ## Features
 
-### 🔒 Advanced Status Management
-- Comprehensive product lifecycle tracking
-- Validated status transitions
-- Immutable status history
+### 🔒 Secure Status Management
+- Comprehensive product lifecycle tracking with validated transitions
+- Cryptographically secure status updates
+- Immutable status history with timestamp validation
+- Strict authorization controls for status modifications
 
-### 🌐 Cross-Chain Interoperability
-- Seamless interaction between blockchain networks
-- Secure transfer of product information
-- Bridge configuration management
+### 🌡️ Enhanced IoT Integration
+- Secure device registration and verification
+- Real-time product condition monitoring
+- Active device status tracking
+- Validated IoT device-to-product mapping
 
-### 🔍 Authenticity Verification
+### 🔍 Advanced Authenticity Verification
 - Cryptographic proof of product origin
-- Prevention of counterfeiting
+- Robust hash validation system
+- Double-verification mechanism (IoT + blockchain)
 - Immutable authentication records
 
-### 🌡️ IoT Integration
-- Direct status updates from IoT devices
-- Real-time product tracking
-- Device verification and management
+### 📡 Event Notification System
+- Customizable status change alerts
+- Subscriber-based notification system
+- Flexible event filtering
+- Real-time status updates
 
-## Smart Contract Capabilities
+## Smart Contract Security Features
 
-### Product Registration
-- Unique product ID generation
-- Manufacturer verification
-- Authentication hash creation
+### Authentication & Authorization
+- Strict sender verification
+- Manufacturer validation
+- Role-based access control
+- Device registration verification
 
-### Status Management
-- Predefined status workflow:
-  - CREATED
-  - IN_TRANSIT
-  - SHIPPED
-  - DELIVERED
-  - DAMAGED
-  - LOST
+### Data Validation
+- Hash integrity checks
+- IoT device validation
+- Status transition verification
+- Input sanitization and validation
 
-### Notification System
-- Event-based status change alerts
-- Customizable subscriber notifications
+### Product Management
+- Unique product ID validation
+- Creation timestamp verification
+- Authentication hash verification
+- IoT device association checks
 
-## Technical Architecture
+## Status Lifecycle
 
-- **Language**: Clarity Smart Contract Language
-- **Blockchain**: Stacks
-- **Key Components**:
-  - Product Tracking Map
-  - Status Transition Rules
-  - IoT Device Registry
-  - Event Subscription Mechanism
+The contract enforces a strict status transition workflow:
 
-## Use Cases
+- `CREATED` → Initial product registration
+- `IN_TRANSIT` → Product in movement
+- `SHIPPED` → Product dispatched
+- `DELIVERED` → Successful delivery
+- `DAMAGED` → Product damage reported
+- `LOST` → Product missing in transit
 
-1. **Supply Chain Tracking**
-   - Real-time product location monitoring
-   - Verified product authenticity
-   - Transparent logistics
+## Technical Implementation
 
-2. **Counterfeit Prevention**
-   - Immutable product records
-   - Cryptographic verification
-   - Traceability from manufacturer to end-user
+### Core Data Structures
 
-3. **IoT-Enabled Logistics**
-   - Automatic status updates
-   - Condition monitoring
-   - Immediate anomaly detection
+```clarity
+;; Product Tracking
+(define-map products
+  { product-id: uint }
+  {
+    owner: principal,
+    current-status: (string-ascii 20),
+    manufacturer: principal,
+    creation-timestamp: uint,
+    iot-device-id: (optional (buff 32)),
+    authentication-hash: (buff 32)
+  })
+
+;; IoT Device Registry
+(define-map iot-devices
+  { device-id: (buff 32) }
+  {
+    registered-by: principal,
+    is-active: bool,
+    product-id: (optional uint)
+  })
+```
+
+### Key Functions
+
+#### Product Registration
+```clarity
+(define-public (register-product
+  (product-id uint)
+  (manufacturer principal)
+  (initial-status (string-ascii 20))
+  (authentication-hash (buff 32))
+  (creation-timestamp uint)
+  (optional-iot-device-id (optional (buff 32))))
+```
+
+#### IoT Device Registration
+```clarity
+(define-public (register-iot-device
+  (device-id (buff 32))
+  (product-id (optional uint)))
+```
+
+#### Product Authentication
+```clarity
+(define-read-only (verify-product-authenticity
+  (product-id uint)
+  (provided-hash (buff 32)))
+```
 
 ## Getting Started
 
 ### Prerequisites
 - Stacks Wallet
-- Basic understanding of Clarity smart contracts
+- Understanding of Clarity smart contracts
 - IoT devices (optional)
 
 ### Deployment Steps
 1. Deploy the Bitbridges smart contract
-2. Initialize status transitions
-3. Register products
-4. Configure IoT devices (optional)
-5. Subscribe to status notifications
+2. Initialize status transition rules
+3. Register IoT devices (if applicable)
+4. Register products
+5. Configure status subscriptions
 
-## Example Workflow
+### Example Usage
 
 ```clarity
-;; Register a product
-(register-product 
-  product-id 
-  manufacturer 
-  STATUS_CREATED 
-  authentication-hash
-)
+;; Register an IoT device
+(register-iot-device 
+    device-id 
+    (optional product-id))
 
-;; Update product status
-(update-product-status 
-  product-id 
-  STATUS_IN_TRANSIT
-)
+;; Register a product with IoT integration
+(register-product
+    product-id
+    manufacturer
+    STATUS_CREATED
+    authentication-hash
+    creation-timestamp
+    (some device-id))
 
-;; Verify product authenticity
-(verify-product-authenticity 
-  product-id 
-  provided-hash
-)
+;; Subscribe to status updates
+(subscribe-to-status-events
+    product-id
+    notify-statuses)
 ```
 
-## Security Considerations
+## Security Best Practices
 
-- Strict status transition validation
-- IoT device verification
-- Immutable blockchain records
-- Event-based tracking
+1. **Input Validation**
+   - All inputs are validated before processing
+   - Hash integrity is verified
+   - IoT device status is checked
+   - Status transitions are validated
 
-## Future Roadmap
+2. **Access Control**
+   - Manufacturer verification
+   - Owner authentication
+   - Device registration validation
+   - Status update authorization
 
-- Multi-chain support
-- Advanced analytics
-- Machine learning integration
-- Enhanced IoT capabilities
+3. **Data Integrity**
+   - Immutable status history
+   - Cryptographic product verification
+   - Secure IoT device mapping
+   - Timestamp validation
+
+## Error Handling
+
+The contract includes comprehensive error handling:
+
+- `ERR_INVALID_STATUS_TRANSITION` (u200)
+- `ERR_UNAUTHORIZED_STATUS_UPDATE` (u201)
+- `ERR_PRODUCT_NOT_FOUND` (u202)
+- `ERR_IOT_VERIFICATION_FAILED` (u203)
+- `ERR_INVALID_INPUT` (u204)
+- `ERR_INVALID_HASH` (u205)
+- `ERR_INVALID_IOT_DEVICE` (u206)
+
+## Future Enhancements
+
+- Multi-signature status updates
+- Advanced IoT data validation
+- Cross-chain verification
+- Enhanced batch processing capabilities
+- Real-time analytics integration
 
 ## Contributing
 
 1. Fork the repository
 2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+3. Implement security-first features
+4. Add comprehensive tests
+5. Submit a pull request
